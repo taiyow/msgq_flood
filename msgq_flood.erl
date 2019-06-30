@@ -121,7 +121,7 @@ flood_to_dam(ProcessCount, RepeatCount) ->
     flood(ProcessCount, RepeatCount, Pid).
 
 flood(ProcessCount, RepeatCount, Pid) ->
-    Message = "hello",
+    Message = <<"hello">>,
     lists:foreach(fun(_) ->
                    spawn(fun() -> timer:sleep(1000),
                                   process_flag(priority, low),
