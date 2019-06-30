@@ -73,6 +73,13 @@ DateTime                        dam msgq (diff) server msgq (diff)
 %% log_server のキュー吸い込みレートが 100通/秒 未満
 ```
 
+このとき、Erlang VM は1コア占有状態になっている。
+
+```
+PID    COMMAND      %CPU  TIME     #TH   #WQ  #PORTS MEM    PURG   CMPRS  PGRP
+60728  beam.smp     100.9 01:48.63 32/1  0    54     189M+  0B     0B     60728
+```
+
 ### dam を経由すると遅くならないことを再現
 
 ```
