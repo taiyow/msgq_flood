@@ -115,27 +115,21 @@ flood_direct 後に `eprof` で log_server をプロファイルした結果:
 ```
 FUNCTION                                       CALLS        %      TIME  [uS / CALLS]
 --------                                       -----  -------      ----  [----------]
-gen_server:handle_msg/5                          784     0.00       837  [      1.07]
-prim_file:drv_get_response/1                     784     0.00       956  [      1.22]
-gen_server:decode_msg/8                          784     0.00      1044  [      1.33]
-prim_file:write/2                                784     0.00      1082  [      1.38]
-gen_server:handle_common_reply/6                 784     0.00      1415  [      1.80]
-gen_server:loop/6                                784     0.00      1498  [      1.91]
-prim_file:get_uint64/1                           784     0.00      1551  [      1.98]
-prim_file:'-drv_command_nt/3-after$^0/0-0-'/1    784     0.00      1571  [      2.00]
-prim_file:drv_get_response/2                     784     0.00      1703  [      2.17]
-gen_server:try_dispatch/4                        784     0.00      1942  [      2.48]
-prim_file:drv_command_nt/3                       784     0.00      1972  [      2.52]
-msgq_flood:handle_cast/2                         784     0.00      2075  [      2.65]
-erlang:port_command/2                            784     0.00      2270  [      2.90]
-file:write/2                                     784     0.00      2429  [      3.10]
-prim_file:translate_response/2                   784     0.00      2758  [      3.52]
-prim_file:get_uint32/1                          1568     0.00      3882  [      2.48]
-erts_internal:port_command/3                     784     0.01     13662  [     17.43]
-erlang:bump_reductions/1                         784    14.35  13169774  [  16798.18]
-gen_server:try_dispatch/3                        784    85.61  78579284  [ 100228.68]
+prim_file:drv_get_response/1                    1185     0.00      1115  [      0.94]
+prim_file:write/2                               1185     0.00      1824  [      1.54]
+prim_file:'-drv_command_nt/3-after$^0/0-0-'/1   1185     0.00      1839  [      1.55]
+prim_file:get_uint64/1                          1185     0.00      1995  [      1.68]
+prim_file:drv_get_response/2                    1185     0.00      2179  [      1.84]
+prim_file:drv_command_nt/3                      1185     0.00      2827  [      2.39]
+msgq_flood:log_loop/2                           1185     0.01      3993  [      3.37]
+prim_file:translate_response/2                  1185     0.01      5551  [      4.68]
+prim_file:get_uint32/1                          2370     0.01      6933  [      2.93]
+erlang:port_command/2                           1185     0.02     16310  [     13.76]
+erts_internal:port_command/3                    1185     0.04     27248  [     22.99]
+erlang:bump_reductions/1                        1185    20.74  15435135  [  13025.43]
+file:write/2                                    1185    79.17  58922075  [  49723.27]
 ---------------------------------------------  -----  -------  --------  [----------]
-Total:                                         15680  100.00%  91791705  [   5854.06]
+Total:                                         16590  100.00%  74429024  [   4486.38]
 ```
 
 ### erlang:bump_reductions/1 のコード
@@ -159,18 +153,18 @@ BIF_RETTYPE bump_reductions_1(BIF_ALIST_1)
 
 ループもロックも無し。ここで時間を食う可能性は低くないか？
 
-### gen_server:try_dispatch/3 のコード
+### file:write/2 のコード
 
-lib/stdlib/src/gen_server.erl:
+lib/kernel/src/file.erl:
 
 ```erlang
-try_dispatch({'$gen_cast', Msg}, Mod, State) ->
-    try_dispatch(Mod, handle_cast, Msg, State);
-try_dispatch(Info, Mod, State) ->
-    try_dispatch(Mod, handle_info, Info, State).
+write(#file_descriptor{module = Module} = Handle, Bytes) ->
+    Module:write(Handle, Bytes);
 ```
 
-この、ただの分岐関数が時間を食うわけないよね。
+このとき `module = prim_file` なので、`prim_file:write` を呼んでいるだけの関数。
+ここで時間を食う可能性も低い。
+プロファイラが間違っているのかもしれない。
 
 トライアル
 ----------
