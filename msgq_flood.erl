@@ -2,8 +2,6 @@
 
 -module(msgq_flood).
 
--behaviour(gen_server).
-
 -define(DELAYED_WRITE_MS, 2*1000).
 -define(DELAYED_WRITE_BYTES, 64*1024).
 
@@ -18,9 +16,8 @@
 -export([log/1, log/2]).
 -export([stop/1]).
 
-%% gen_server callbacks
--export([init/1, terminate/2, handle_call/3,
-         handle_cast/2, handle_info/2, code_change/3]).
+%% log_server entrance
+-export([init/1]).
 
 %% dam (traffic controller) entrance and loop
 -export([dam_loop/1]).
@@ -30,13 +27,13 @@
 -export([flood_to_dam/2]).
 -export([watch/0]).
 
--record(state,{file, dam}).
-
 %%====================================================================
 %% log server API
 %%====================================================================
 start_link(Path) ->
-    gen_server:start_link({local, ?SERVER_PROC_NAME}, ?MODULE, [Path], []).
+    Pid = spawn(?MODULE, init, [Path]),
+    register(?SERVER_PROC_NAME, Pid),
+    {ok, Pid}.
 
 log(Msg) ->
     case whereis(?DAM_PROC_NAME) of
@@ -47,10 +44,10 @@ log(Msg) ->
 log(Msg, Pid) ->
     DateTime = datetime(),
     IOList = [DateTime, " ", Msg, "\n"],
-    gen_server:cast(Pid, {log, iolist_to_binary(IOList)}).
+    Pid ! {log, iolist_to_binary(IOList)}.
 
 stop(Pid) ->
-    gen_server:call(Pid, stop).
+    Pid ! stop.
 
 %%====================================================================
 %% dam (traffic controller)
@@ -72,34 +69,18 @@ discharge(Pid, Msg) ->
 %%====================================================================
 %% gen_server callbacks
 %%====================================================================
-init([Path]) ->
-   {ok, File} = file:open(Path,
+init(Path) ->
+    {ok, File} = file:open(Path,
 		    [append, raw, {delayed_write, ?DELAYED_WRITE_BYTES, ?DELAYED_WRITE_MS}]),
     DamPid = spawn_link(?MODULE, dam_loop, [self()]),
     register(?DAM_PROC_NAME, DamPid),
-    {ok, #state{file = File, dam = DamPid}}.
+    log_loop(File, DamPid).
 
-terminate(_Reason, #state{file = File, dam = DamPid}) ->
-    DamPid ! stop,
-    file:close(File),
-    ok.
-
-handle_call(stop, _From, State) ->
-    {stop, normal, ok, State};
-handle_call(_Req, _From, State) ->
-    {reply, {error, badarg}, State}.
-
-handle_cast({log, Msg}, #state{file = File} = State) ->
-    file:write(File, Msg),
-    {noreply, State};
-handle_cast(_Msg, State) ->
-    {noreply, State}.
-
-handle_info(_Msg, State) ->
-    {noreply, State}.
-
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+log_loop(File, DamPid) ->
+    receive
+	stop -> DamPid ! stop;
+	{log, Msg} -> file:write(File, Msg), log_loop(File, DamPid)
+    end.
 
 %%====================================================================
 %% internal function
